@@ -1,0 +1,25 @@
+{
+    "name": "GPT4 Vision Extension",
+    "description": "Allows you to use GPT4 Vision in your browser to perform tasks.",
+    "version": "1.0",
+    "manifest_version": 3,
+    "action": {
+      "default_popup": "index.html",
+      "default_title": "GPT4 Vision Extension"
+   },
+    "permissions": [
+       "activeTab",
+       "scripting", 
+       "tabs"
+    ],
+    "background": {
+       "service_worker": "background.js"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"],
+        "run_at": "document_idle"
+      }
+    ]
+ }

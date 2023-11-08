@@ -1,0 +1,33 @@
+{
+  "name": "gpt4-vision-chrome-extension",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "rm -r -f dist && parcel build src/index.html --no-source-maps",
+    "start": "parcel src/index.html --open"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@tailwindcss/aspect-ratio": "^0.4.2",
+    "@tailwindcss/typography": "^0.5.10",
+    "@types/chrome": "^0.0.250",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "buffer": "^6.0.3",
+    "daisyui": "^3.9.4",
+    "parcel": "^2.10.2",
+    "parcel-reporter-static-files-copy": "^1.5.3",
+    "postcss": "^8.4.31",
+    "process": "^0.11.10",
+    "tailwindcss": "^3.3.5",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "openai": "^4.16.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
