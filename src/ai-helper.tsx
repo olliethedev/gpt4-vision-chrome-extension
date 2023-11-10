@@ -6,10 +6,10 @@ import { ChatCompletionMessageParam } from "openai/resources";
 export type Command = 
 | { clickElementByTag: string; reason: string }
 | { inputElementByTag: string; value: string; reason: string }
-| { scrollDown: boolean; reason?: string }
-| { openUrlInCurrentTab: string; reason?: string }
-| { logAnswer: string; reason?: string }
-| { taskDone: boolean; reason?: string };
+| { scrollDown: boolean; reason: string }
+| { openUrlInCurrentTab: string; reason: string }
+| { logAnswer: string; reason: string }
+| { taskDone: boolean; reason: string };
 
 export type Commands = Command[];
 
@@ -38,7 +38,7 @@ export async function createCompletionWorkaround(inputMessages: ChatCompletionMe
     [
         {
             "clickElementByTag": "4269",
-            "reason": "chicked feedback button"
+            "reason": "clicked feedback button"
         },
         {
             "inputElementByTag": "5140",
@@ -50,8 +50,8 @@ export async function createCompletionWorkaround(inputMessages: ChatCompletionMe
             "reason": "clicked submit button"
         },
         {
-            "clickElementByTag": "1199",
-            "logAnswer": "feedback sent"
+            "logAnswer": "feedback sent",
+            "reason": "log completion of the task"
         }
     ]
     `;

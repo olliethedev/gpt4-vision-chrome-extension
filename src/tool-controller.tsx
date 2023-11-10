@@ -15,7 +15,14 @@ interface runControllerProps {
   initialTask: string;
   initialMessages?: ChatCompletionMessageParam[];
   onMessageUpdate: (data: ChatCompletionMessageParam) => void;
-  onToolUpdate: (data: CommandResult) => void;
+  onToolUpdate: (data: ToolResult) => void;
+}
+
+export interface ToolResult {
+  status: "Success" | "Error";
+  message: string;
+  reason: string;
+  image?: string;
 }
 
 export async function runController(input: runControllerProps) {
@@ -47,7 +54,9 @@ export async function runController(input: runControllerProps) {
     ],
   });
   onMessageUpdate(messages[messages.length - 1]);
-  while (messages.length < 10) {
+
+  const maxMessages = 20;
+  while (messages.length < maxMessages) {
     const response = await createCompletionWorkaround(messages);
     console.log(response);
     if (response.choices[0].message.content === "done") {
@@ -74,11 +83,12 @@ export async function runController(input: runControllerProps) {
       onToolUpdate({
         status: "Error",
         message: e,
+        reason: "Error",
       });
       break;
     }
   }
-  if (messages.length >= 10) {
+  if (messages.length >= maxMessages) {
     console.log("Max messages reached");
     onMessageUpdate({
       role: "user",
@@ -89,7 +99,7 @@ export async function runController(input: runControllerProps) {
 
 async function runTools(
   input: string,
-  onToolUpdate: (data: CommandResult | ImageCommandResult) => void
+  onToolUpdate: (data: ToolResult) => void
 ): Promise<ChatCompletionMessageParam | null> {
   const commands = parseJsonString(input);
   if (commands === null) {
@@ -99,30 +109,32 @@ async function runTools(
   for (const command of commands) {
     if ("clickElementByTag" in command) {
       const result = await handleNavigateWithClick(command.clickElementByTag);
-      onToolUpdate(result);
+      onToolUpdate({...result, reason: command.reason});
     } else if ("inputElementByTag" in command) {
       const result = await handleInputText(
         command.inputElementByTag,
         command.value
       );
-      onToolUpdate(result);
+      onToolUpdate({...result, reason: command.reason});
     } else if ("scrollDown" in command) {
       const result = await handleScrollPage();
-      onToolUpdate(result);
+      onToolUpdate({...result, reason: command.reason});
     } else if ("openUrlInCurrentTab" in command) {
       const result = await handleOpenUrl(command.openUrlInCurrentTab);
-      onToolUpdate(result);
+      onToolUpdate({...result, reason: command.reason});
     } else if ("logAnswer" in command) {
       console.log(command.logAnswer);
       onToolUpdate({
         status: "Success",
         message: command.logAnswer,
+        reason: command.reason,
       });
     } else if ("taskDone" in command) {
       console.log("Task done!");
       onToolUpdate({
         status: "Success",
         message: "Task done!",
+        reason: command.reason,
       });
       return null;
     }
@@ -130,7 +142,7 @@ async function runTools(
   await new Promise((resolve) => setTimeout(resolve, 1000));
   await addUniqueTags();
   const imageState = await captureTab();
-  onToolUpdate(imageState);
+  onToolUpdate({...imageState, reason: "Capture tab image"});
 
   return {
     role: "user",

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { runController } from './tool-controller';
-import { CommandResult, ImageCommandResult, setChromeStorage, getChromeStorage } from './extension-helper';
+import { ToolResult, runController } from './tool-controller';
+import { setChromeStorage, getChromeStorage } from './extension-helper';
 import { ChatCompletionMessageParam } from 'openai/resources';
 
 export const useAI = (initialTask: string) => {
-  const [data, setData] = useState<(ChatCompletionMessageParam | CommandResult | ImageCommandResult)[]>([]);
+  const [data, setData] = useState<(ChatCompletionMessageParam | ToolResult)[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -27,7 +27,7 @@ export const useAI = (initialTask: string) => {
       );
     };
 
-    const onToolUpdate = (data: CommandResult| ImageCommandResult) => {
+    const onToolUpdate = (data: ToolResult) => {
         setData(
             (prevData) => {
               const newData = [...prevData, data];
