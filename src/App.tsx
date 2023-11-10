@@ -1,93 +1,73 @@
-import React, { useCallback } from "react";
-import { createCompletion, createCompletionWorkaround, navigateWithClick } from "./ai-helper";
+import React, { useEffect } from "react";
+import { CommandResult, ImageCommandResult, getChromeStorage } from "./extension-helper";
+import { useAI } from "./useAI";
+import { ChatCompletionMessageParam } from "openai/resources";
 
 export function App() {
 
-  const [imageUrl, setImageUrl] = React.useState<string>("");
+    const [input, setInput] = React.useState("");
 
-  const [answer, setAnswer] = React.useState<string>("");
+    const [hasPreviousState, setHasPreviousState] = React.useState(false);
 
-  const handleAddTagsClick = () => {
+    useEffect(() => {
+        getChromeStorage("chatData").then((value) => {
+            console.log({prevState:value});
+            setHasPreviousState(value);
+        });
+    },[]);
 
-    // Query the active tab, which will be the current window when the user clicked the popup
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      // Send a message to the content script
-      if (!tabs[0].id) return;
-      chrome.tabs.sendMessage(
-        tabs[0].id,
-        { action: "addUniqueTags" },
-        (response) => {
-          // Handle the response here
-          console.log({ response });
-        }
-      );
-    });
-  };
-
-  const handleCaptureClick = () => {
-    console.log("Capture clicked");
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0].id) return;
-      chrome.tabs.sendMessage(
-        tabs[0].id,
-        { action: "captureTab" },
-        (response) => {
-          console.log({ response });
-          if (response && response.status === "Tab captured") {
-            // Here you have the image as a data URL
-            const imageDataUrl = response.image;
-            console.log(imageDataUrl);
-            // create new img element and set its src to the dataURL
-            const img = document.createElement("img");
-            img.src = imageDataUrl;
-            document.body.appendChild(img);
-            // createCompletion(imageDataUrl).then((res) => {
-            //   console.log(res);
-            // });
-            setImageUrl(imageDataUrl);
-          }
-        }
-      );
-    });
-  };
   return (
-    <div className="w-72 flex flex-col gap-4">
+    <div className="flex flex-col gap-4 p-3 w-96">
       <h1 className="text-2xl font-bold">GPT4-Vision Assistant</h1>
-      <button className="btn btn-primary" onClick={handleAddTagsClick}>
-        Add Tags
-      </button>
-      <button className="btn btn-primary" onClick={handleCaptureClick}>
-        Capture
-      </button>
       <form
         className="flex flex-col"
         onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
           e.preventDefault();
           //get the value of the input
           const input = (e.currentTarget.elements[0] as HTMLInputElement).value;
-          navigateWithClick(input);
+          setInput(input);
         }}
       >
-        <input className="input" type="text" placeholder="button id" />
+        <div className="flex gap-2">
+        <textarea className="textarea textarea-bordered h-24" placeholder="Enter task description" />
+        <button className="btn btn-primary" type="submit" >Submit</button>
+        </div>
       </form>
-      {imageUrl && (
-        <form className="flex flex-col" onSubmit={async (e) => {
-            e.preventDefault();
-            const input = (e.currentTarget.elements[0] as HTMLInputElement).value;
-            const result = await createCompletionWorkaround(imageUrl, input);
-            setAnswer(result.choices[0].message.content??"none");
-        }}>
-          <input
-            className="input"
-            type="text"
-            placeholder="task description"
-          />
-          </form>
-      )}
+      {(input||hasPreviousState) && (<AIChat input={input} />)}
 
-      <span className="text-base text-amber-200"
-      >{answer}</span>
       
     </div>
   );
+}
+
+const AIChat = ({input}: {input:string}) => {
+    const data = useAI(input); 
+    return (
+        <div className="flex flex-col gap-4">
+            {data?.map((message:ChatCompletionMessageParam | CommandResult | ImageCommandResult | null) => {
+                if(message === null){
+                    return <div className="chat-bubble chat-bubble-info">Done</div>
+                }
+                if("role" in message){
+                    return (
+                        <div className="chat-bubble">
+                            {Array.isArray(message.content) ? message.content.map((contentPart, index) => {
+                                if ('text' in contentPart) {
+                                    return <p key={index}>{contentPart.text}</p>;
+                                } else if ('image_url' in contentPart) {
+                                    return <img key={index} src={contentPart.image_url.url} alt="content part" />;
+                                }
+                            }) : typeof message.content === 'string' ? <p>{message.content}</p> : null}
+                        </div>
+                    );
+                }
+                if("status" in message){
+                    return <div className="chat-bubble chat-bubble-accent">{(message as CommandResult).status}:{(message as CommandResult).message}</div>
+                }
+                if("image" in message){
+                    return <div className="chat-bubble"><img src={(message as ImageCommandResult).image} alt="command result"/></div>
+                }
+            })}
+        </div>
+    );
 }

@@ -1,88 +1,240 @@
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log({request});
-  if (request.action === "addUniqueTags") {
-    addUniqueTags(() => {
-      sendResponse({ status: "Tags added" });
-    });
-    return true;
-  } else if (request.action === "captureTab") {
-    captureTab((dataUrl) => {
-      sendResponse({ status: "Tab captured", image: dataUrl });
-    });
-    return true;
-  } else if (request.action === "clickElementByTag") {
-    const clicked = clickElementByTag(request.uniqueTag);
-    sendResponse({ success: clicked });
+  console.log("content.js", { request });
+
+  switch (request.action) {
+    case "addUniqueTags":
+      handleAddUniqueTags(sendResponse);
+      return true;
+    case "captureTab":
+      handleCaptureTab(sendResponse);
+      return true;
+    case "clickElementByTag":
+      handleClickElementByTag(request.uniqueTag, sendResponse);
+      return true;
+    case "inputElementByTag":
+      handleInputElementByTag(request.uniqueTag, request.text, sendResponse);
+      return true;
+    case "scrollDown":
+      handleScrollDown(sendResponse);
+      break;
+    case "openUrlInCurrentTab":
+      handleOpenUrlInCurrentTab(request.url, sendResponse);
+      return true;
+    default:
+      console.error("Invalid action: ", request.action);
   }
 });
 
-function addUniqueTags(completion) {
-  //wait 2 seconds
-  setTimeout(function () {
-    // Get all the buttons and links on the page
-    const elements = document.querySelectorAll("a, button, input, textarea");
-    elements.forEach((element) => {
-      // Generate a unique tag for each element
-      const uniqueTag = generateUID();
-      // Add the unique tag as text or an attribute
-      // Here, we're adding a data attribute and also showing it as text for visibility
-      element.setAttribute("data-unique-tag", uniqueTag);
-      // Creating a span element to hold the unique tag
-      const tagElement = document.createElement("span");
-      tagElement.style.background = "yellow";
-      tagElement.style.color = "black";
-      tagElement.style.fontSize = "small";
-      tagElement.style.margin = "0 3px";
-      tagElement.style.fontWeight = "bold";
-      tagElement.textContent = `[${uniqueTag}]`;
-      // Append or prepend the tagElement based on your preference
-      if (element.tagName.toLowerCase() === "input") {
-        element.parentNode.insertBefore(tagElement, element);
-      } else {
-        element.prepend(tagElement);
-      }
+/* Message handlers */
+
+async function handleAddUniqueTags(sendResponse) {
+  try {
+    await addUniqueTags();
+    sendResponse({ status: "Success", message: "Tags added" });
+  } catch (error) {
+    console.error("Error adding unique tags: ", error);
+    sendResponse({ status: "Error", message: error });
+  }
+}
+
+async function handleCaptureTab(sendResponse) {
+  try {
+    const dataUrl = await captureTab();
+    sendResponse({
+      status: "Success",
+      message: "Tab captured",
+      image: dataUrl,
     });
-
-    completion();
-  }, 2000);
+  } catch (error) {
+    console.error("Error capturing tab: ", error);
+    sendResponse({ status: "Error", message: error.message });
+  }
 }
 
-function captureTab(callback) {
-  // Delegate the capture to the background script
-  chrome.runtime.sendMessage({ action: "captureTab" }, (response) => {
-    if (response) {
-      console.log({ dataUrl: response.dataUrl });
-      callback(response.dataUrl);
-    }
-  });
+async function handleClickElementByTag(uniqueTag, sendResponse) {
+  try {
+    const clicked = await clickElementByTag(uniqueTag);
+    sendResponse({
+      status: clicked ? "Success" : "Error",
+      message: clicked ? "Element clicked" : "Element not found",
+    });
+  } catch (error) {
+    console.error("Error clicking element by tag: ", error);
+    sendResponse({ status: "Error", message: error.message });
+  }
 }
 
-function clickElementByTag(uniqueTag) {
-  console.log({ uniqueTag });
-  // Find the element with the specified unique tag
-  const elements = document.querySelectorAll('[data-unique-tag]');
-  let elementFound = false;
+async function handleInputElementByTag(uniqueTag, text, sendResponse) {
+  try {
+    const inputted = await inputElementByTag(uniqueTag, text);
+    sendResponse({
+      status: inputted ? "Success" : "Error",
+      message: inputted ? "Element inputted" : "Element not found",
+    });
+  } catch (error) {
+    console.error("Error inputting element by tag: ", error);
+    sendResponse({ status: "Error", message: error.message });
+  }
+}
+
+function handleScrollDown(sendResponse) {
+  try {
+    scrollDown();
+    sendResponse({ status: "Success", message: "Scrolled down" });
+  } catch (error) {
+    console.error("Error scrolling down: ", error);
+    sendResponse({ status: "Error", message: error.message });
+  }
+}
+
+async function handleOpenUrlInCurrentTab(url, sendResponse) {
+  try {
+    await openUrlInCurrentTab(url);
+    sendResponse({ status: "Success", message: "URL opened in current tab" });
+  } catch (error) {
+    console.error("Error opening URL in current tab: ", error);
+    sendResponse({ status: "Error", message: error.message });
+  }
+}
+
+/* Core functions */
+
+async function addUniqueTags() {
+  await wait(1000);
+
+  const tagElementStyles = {
+    color: "black",
+    fontSize: "14px",
+    padding: "3px",
+    fontWeight: "bold",
+    zIndex: "999",
+    position: "relative"
+  };
+
+  const elements = document.querySelectorAll("a, button, input, textarea, [role='button'], [role='textbox']");
 
   elements.forEach((element) => {
+    if (!element.hasAttribute("data-ai-tag")) {
+      const uniqueTag = generateUID();
+      element.setAttribute("data-ai-tag", uniqueTag);
 
-    const cleanTag = uniqueTag.replace(/\[|\]/g, '');
-    if (element.getAttribute('data-unique-tag') === cleanTag) {
-      // If the element is found, click it and set the flag
-      element.click();
-      elementFound = true;
+      const tagElement = createTagElement(uniqueTag, tagElementStyles);
+
+      if (["input", "textarea"].includes(element.tagName.toLowerCase()) || element.getAttribute('role') === 'textbox') {
+        tagElement.style.background = "orange";
+        element.parentNode.insertBefore(tagElement, element);
+      } else {
+        tagElement.style.background = "yellow";
+        element.prepend(tagElement);
+      }
     }
   });
+}
 
-  // Return whether the click was successful
+async function captureTab() {
+  await wait(1000);
+  return new Promise((resolve, reject) => {
+    // Delegate the capture to the background script. Todo: is there a better way to do this?
+    chrome.runtime.sendMessage({ action: "createImageFromTab" }, (response) => {
+      if (response) {
+        resolve(response.dataUrl);
+      } else {
+        reject("Failed to capture tab");
+      }
+    });
+  });
+}
+
+async function clickElementByTag(uniqueTag) {
+  const element = document.querySelector(
+    `[data-ai-tag="${cleanTag(uniqueTag)}"]`
+  );
+  let elementFound = false;
+
+  if (element) {
+    element.style.border = "5px solid red";
+    await wait(500);
+    element.click();
+    element.style.border = "";
+    elementFound = true;
+  }
+
   return elementFound;
 }
 
-// Function to generate a unique ID
+async function inputElementByTag(uniqueTag, text) {
+  const element = document.querySelector(
+    `[data-ai-tag="${cleanTag(uniqueTag)}"]`
+  );
+  let elementFound = false;
+
+  if (element) {
+    if (element.hasAttribute('contenteditable')) {
+      // Handle contenteditable divs
+      for (let i = 0; i < text.length; i++) {
+        element.textContent += text[i];
+        await wait(100);
+      }
+    } else {
+      // Handle input elements
+      for (let i = 0; i < text.length; i++) {
+        element.value += text[i];
+        await wait(100);
+      }
+    }
+    elementFound = true;
+  }
+
+  return elementFound;
+}
+
+function scrollDown() {
+  const scrollAmount = window.innerHeight * 0.8;
+  window.scrollBy(0, scrollAmount);
+}
+
+function openUrlInCurrentTab(url) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+      var currTab = tabs[0];
+      if (currTab) {
+        chrome.tabs.update(currTab.id, { url: url }, function () {
+          resolve();
+        });
+      } else {
+        reject("No active tab found");
+      }
+    });
+  });
+}
+
+/* Utility functions */
+
+function createTagElement(uniqueTag, styles) {
+  const tagElement = document.createElement("span");
+
+  Object.keys(styles).forEach((styleKey) => {
+    tagElement.style[styleKey] = styles[styleKey];
+  });
+
+  tagElement.textContent = `${uniqueTag}`;
+
+  return tagElement;
+}
+
 function generateUID(digits = 4) {
   let string = "";
   for (let i = 0; i < digits; i++) {
     string += Math.floor(Math.random() * 10);
   }
   return string;
+}
+
+function cleanTag(tag) {
+  return tag.replace(/\[|\]/g, "");
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
