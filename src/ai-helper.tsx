@@ -3,13 +3,13 @@ import OpenAI from "openai";
 // import { RunnableToolFunction } from 'openai/lib/RunnableFunction';
 import { ChatCompletionMessageParam } from "openai/resources";
 
-export type Command = 
-| { clickElementByTag: string; reason: string }
-| { inputElementByTag: string; value: string; reason: string }
-| { scrollDown: boolean; reason: string }
-| { openUrlInCurrentTab: string; reason: string }
-| { logAnswer: string; reason: string }
-| { taskDone: boolean; reason: string };
+export type Command =
+  | { clickElementByTag: string; reason: string }
+  | { inputElementByTag: string; value: string; reason: string }
+  | { scrollDown: boolean; reason: string }
+  | { openUrlInCurrentTab: string; reason: string }
+  | { logAnswer: string; reason: string }
+  | { taskDone: boolean; reason: string };
 
 export type Commands = Command[];
 
@@ -18,10 +18,12 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true,
 });
 
-
 // note: this is a workaround for the fact that the chat API does not support function calling or respect system prompts (2023-11-09)
-export async function createCompletionWorkaround(inputMessages: ChatCompletionMessageParam[], ) {
-    const systemPrompt = `You are given a text interface to a web browser. 
+// note: for production, you should move this logic to a backend server and manage the task state from background.js
+export async function createCompletionWorkaround(
+  inputMessages: ChatCompletionMessageParam[]
+) {
+  const systemPrompt = `You are given a text interface to a web browser. 
     You can ONLY use JSON array of commands to respond and navigate the web page in the image:
 
     - clickElementByTag: Clicks any button or link element marked with a yellow tag name.
@@ -55,16 +57,13 @@ export async function createCompletionWorkaround(inputMessages: ChatCompletionMe
         }
     ]
     `;
-      const messages: ChatCompletionMessageParam[] = [
+  const messages: ChatCompletionMessageParam[] = [
     {
       role: "system",
-      content:
-        systemPrompt,
+      content: systemPrompt,
     },
-    ...inputMessages
+    ...inputMessages,
   ];
-
- 
 
   const result = await openai.chat.completions.create({
     model: "gpt-4-vision-preview",
@@ -76,158 +75,17 @@ export async function createCompletionWorkaround(inputMessages: ChatCompletionMe
 }
 
 export function parseJsonString(jsonString: string): Commands | null {
-    // Use regex to remove the 'json' prefix and backticks if they exist
-    const regex = /.*```json\n([\s\S]*?)\n```.*/;
+  // Use regex to remove the 'json' prefix and backticks if they exist
+  const regex = /.*```json\n([\s\S]*?)\n```.*/;
 
-    // Replace the matched parts with just the JSON part
-    const trimmedString = jsonString.replace(regex, '$1');
-  
-    try {
-      const parsed = JSON.parse(trimmedString) satisfies Commands;
-      return parsed;
-    } catch (error) {
-      console.error('Invalid JSON string', error);
-      return null;
-    }
+  // Replace the matched parts with just the JSON part
+  const trimmedString = jsonString.replace(regex, "$1");
+
+  try {
+    const parsed = JSON.parse(trimmedString) satisfies Commands;
+    return parsed;
+  } catch (error) {
+    console.error("Invalid JSON string", error);
+    return null;
   }
-
-//   const tools: RunnableToolFunction<any>[] = [
-//     {
-//       type: 'function',
-//       function: {
-//         name: 'list',
-//         description: 'list queries books by genre, and returns a list of names of books',
-//         parameters: {
-//           type: 'object',
-//           properties: {
-//             genre: { type: 'string', enum: ['mystery', 'nonfiction', 'memoir', 'romance', 'historical'] },
-//           },
-//         },
-//         function: list,
-//         parse: JSON.parse,
-//       },
-//     } as RunnableToolFunction<{ genre: string }>,
-//     {
-//       type: 'function',
-//       function: {
-//         name: 'search',
-//         description: 'search queries books by their name and returns a list of book names and their ids',
-//         parameters: {
-//           type: 'object',
-//           properties: {
-//             name: { type: 'string' },
-//           },
-//         },
-//         function: search,
-//         parse: JSON.parse,
-//       },
-//     } as RunnableToolFunction<{ name: string }>,
-//     {
-//       type: 'function',
-//       function: {
-//         name: 'get',
-//         description:
-//           "get returns a book's detailed information based on the id of the book. Note that this does not accept names, and only IDs, which you can get by using search.",
-//         parameters: {
-//           type: 'object',
-//           properties: {
-//             id: { type: 'string' },
-//           },
-//         },
-//         function: get,
-//         parse: JSON.parse,
-//       },
-//     } as RunnableToolFunction<{ id: string }>,
-//   ];
-
-// export async function createCompletion(image: string) {
-//     //   const messages: ChatCompletionMessageParam[] = [
-//     //     {
-//     //       role: "system",
-//     //       content:
-//     //         `Please use page navigation tools to answer questions about the web page in the image.
-//     //         `,
-//     //     },
-//     //     {
-//     //       role: "user",
-//     //       content: [
-//     //         {
-//     //           type: "image_url",
-//     //           image_url: {
-//     //             url: image,
-//     //             detail: "auto",
-//     //           },
-//     //         },
-//     //         {
-//     //           type: "text",
-//     //           text: "what are the available font sizes?",
-//     //         },
-//     //       ],
-//     //     },
-//     //   ];
-//       const runner = await openai.beta.chat.completions
-//         .runTools({
-//           model: 'gpt-4-vision-preview',
-//           stream: true,
-//           tools,
-//           messages: [
-//             {
-//               role: 'system',
-//               content:
-//                 'Please use our book database, which you can access using functions to answer the following questions.',
-//             },
-//             {
-//               role: 'user',
-//               content:
-//                 'I really enjoyed reading To Kill a Mockingbird, could you recommend me a book that is similar and tell me why?',
-//             },
-//           ],
-//         })
-//         .on('message', (msg) => console.log('msg', msg))
-//         .on('functionCall', (functionCall) => console.log('functionCall', functionCall))
-//         .on('functionCallResult', (functionCallResult) => console.log('functionCallResult', functionCallResult))
-//         .on('content', (diff) => console.log(diff));
-    
-//       const result = await runner.finalChatCompletion();
-//       console.log();
-//       console.log('messages');
-//       console.log(runner.messages);
-    
-//       console.log();
-//       console.log('final chat competion');
-//       console.dir(result, { depth: null });
-//     }
-
-// const db = [
-//     {
-//       id: 'a1',
-//       name: 'To Kill a Mockingbird',
-//       genre: 'historical',
-//       description: `Compassionate, dramatic, and deeply moving, "To Kill A Mockingbird" takes readers to the roots of human behavior - to innocence and experience, kindness and cruelty, love and hatred, humor and pathos. Now with over 18 million copies in print and translated into forty languages, this regional story by a young Alabama woman claims universal appeal. Harper Lee always considered her book to be a simple love story. Today it is regarded as a masterpiece of American literature.`,
-//     },
-//     {
-//       id: 'a2',
-//       name: 'All the Light We Cannot See',
-//       genre: 'historical',
-//       description: `In a mining town in Germany, Werner Pfennig, an orphan, grows up with his younger sister, enchanted by a crude radio they find that brings them news and stories from places they have never seen or imagined. Werner becomes an expert at building and fixing these crucial new instruments and is enlisted to use his talent to track down the resistance. Deftly interweaving the lives of Marie-Laure and Werner, Doerr illuminates the ways, against all odds, people try to be good to one another.`,
-//     },
-//     {
-//       id: 'a3',
-//       name: 'Where the Crawdads Sing',
-//       genre: 'historical',
-//       description: `For years, rumors of the “Marsh Girl” haunted Barkley Cove, a quiet fishing village. Kya Clark is barefoot and wild; unfit for polite society. So in late 1969, when the popular Chase Andrews is found dead, locals immediately suspect her.
-//   But Kya is not what they say. A born naturalist with just one day of school, she takes life's lessons from the land, learning the real ways of the world from the dishonest signals of fireflies. But while she has the skills to live in solitude forever, the time comes when she yearns to be touched and loved. Drawn to two young men from town, who are each intrigued by her wild beauty, Kya opens herself to a new and startling world—until the unthinkable happens.`,
-//     },
-//   ];
-  
-//   async function list({ genre }: { genre: string }) {
-//     return db.filter((item) => item.genre === genre).map((item) => ({ name: item.name, id: item.id }));
-//   }
-  
-//   async function search({ name }: { name: string }) {
-//     return db.filter((item) => item.name.includes(name)).map((item) => ({ name: item.name, id: item.id }));
-//   }
-  
-//   async function get({ id }: { id: string }) {
-//     return db.find((item) => item.id === id)!;
-//   }
+}
